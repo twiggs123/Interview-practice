@@ -1,36 +1,46 @@
 async function evaluateResponse() {
-  const apiKey = document.getElementById('apiKey').value.trim();
+  const apiKeyInput = document.getElementById('apiKey').value.trim();
   const company = document.getElementById('company').value;
   const question = document.getElementById('question').value;
   const userResponse = document.getElementById('response').value;
   const resultsDiv = document.getElementById('results');
   const btn = document.getElementById('evalBtn');
 
-  if (!apiKey || !question || !userResponse) {
-    alert("Please provide an API key, the question, and your answer.");
+  // Fallback to saved key in browser storage if available
+  const apiKey = apiKeyInput || localStorage.getItem('GEMINI_KEY');
+
+  if (!apiKey) {
+    alert("Please enter a valid Gemini API Key.");
+    return;
+  }
+  if (!question || !userResponse) {
+    alert("Please provide both the interview question and your response.");
     return;
   }
 
+  // Save the working key locally in browser memory
+  localStorage.setItem('GEMINI_KEY', apiKey);
+
   btn.disabled = true;
   btn.innerText = "Analyzing response...";
-  resultsDiv.innerHTML = "";
+  resultsDiv.innerHTML = "<p>Connecting to Gemini API...</p>";
 
   const systemPrompt = `You are an automated video interview evaluator trained on HireVue and Willo scoring methodologies. 
-  Analyze the candidate's response against the provided question and company values.
-  
-  You must output strict JSON following this exact structure:
-  {
-    "recommendation": "Strong Yes" | "Yes" | "Maybe" | "No",
-    "overallScore": <number out of 100>,
-    "starAnalysis": {
-      "situationTask": "<assessment of context given>",
-      "action": "<assessment of actions taken by candidate>",
-      "result": "<assessment of outcomes and quantified metrics>"
-    },
-    "companyValuesAlignment": "<analysis on how well the candidate displayed target company values>",
-    "communicationCritique": "<feedback on conciseness, tone, structure, or filler words>",
-    "improvedSampleResponse": "<a rewritten version of their response demonstrating optimal structure>"
-  }`;
+Analyze the candidate's response against the provided question and company values.
+
+You must output strict JSON following this exact structure:
+{
+  "recommendation": "Strong Yes",
+  "overallScore": 85,
+  "starAnalysis": {
+    "situationTask": "Clear background given.",
+    "action": "Good specific steps taken.",
+    "result": "Lacked quantitative metrics."
+  },
+  "companyValuesAlignment": "Demonstrated ownership well.",
+  "communicationCritique": "Concise and clear.",
+  "improvedSampleResponse": "Rewritten answer here..."
+}`;
 
   const requestBody = {
     contents: [
@@ -50,13 +60,20 @@ async function evaluateResponse() {
   };
 
   try {
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(requestBody)
     });
 
-    const data = await res.json();
+    const data = await response.json();
+
+    // Check if Google returned an API error status
+    if (!response.ok || data.error) {
+      throw new Error(`Google API Error (${data.error?.code || response.status}): ${data.error?.message || "Failed to fetch response"}`);
+    }
+
+    // Parse the clean JSON text returned by Gemini
     const evaluation = JSON.parse(data.candidates[0].content.parts[0].text);
 
     resultsDiv.innerHTML = `
@@ -79,8 +96,14 @@ async function evaluateResponse() {
       </div>
     `;
   } catch (err) {
-    console.error(err);
-    alert("Error evaluating response. Check your API key and browser console.");
+    console.error("Interview Evaluation Error:", err);
+    resultsDiv.innerHTML = `
+      <div class="card" style="border-color: red; background: #fff0f0;">
+        <h3 style="color: red; margin-top:0;">Evaluation Failed</h3>
+        <p><strong>Details:</strong> ${err.message}</p>
+        <p><em>Check F12 Developer Console for the complete error trace.</em></p>
+      </div>
+    `;
   } finally {
     btn.disabled = false;
     btn.innerText = "Analyze Interview Answer";
