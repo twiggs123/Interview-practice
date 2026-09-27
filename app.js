@@ -6,7 +6,6 @@ async function evaluateResponse() {
   const resultsDiv = document.getElementById('results');
   const btn = document.getElementById('evalBtn');
 
-  // Fallback to saved key in browser storage if available
   const apiKey = apiKeyInput || localStorage.getItem('GEMINI_KEY');
 
   if (!apiKey) {
@@ -18,7 +17,6 @@ async function evaluateResponse() {
     return;
   }
 
-  // Save the working key locally in browser memory
   localStorage.setItem('GEMINI_KEY', apiKey);
 
   btn.disabled = true;
@@ -60,7 +58,8 @@ You must output strict JSON following this exact structure:
   };
 
   try {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+    // Updated endpoint model identifier to gemini-3.8-flash
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(requestBody)
@@ -68,12 +67,10 @@ You must output strict JSON following this exact structure:
 
     const data = await response.json();
 
-    // Check if Google returned an API error status
     if (!response.ok || data.error) {
       throw new Error(`Google API Error (${data.error?.code || response.status}): ${data.error?.message || "Failed to fetch response"}`);
     }
 
-    // Parse the clean JSON text returned by Gemini
     const evaluation = JSON.parse(data.candidates[0].content.parts[0].text);
 
     resultsDiv.innerHTML = `
